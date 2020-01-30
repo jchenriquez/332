@@ -59,7 +59,6 @@ func dFsIt(graph map[string][]string, currAirport string, seen map[string]bool, 
     airportCpy := make([]string, len(airport))
     copy(airportCpy, airport)
     sort.Strings(airportCpy)
-    fmt.Printf("sorted %v\n", airportCpy)
     for i := 0; i < len(airportCpy); i++ {
       flight := airportCpy[i]
       key := toPathKey(currAirport, flight)
