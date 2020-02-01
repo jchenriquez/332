@@ -1,89 +1,99 @@
 package main
 
-import ("sort"
-        "fmt"
-        "strings")
+import (
+	"container/heap"
+	"fmt"
+)
 
-func graphIt(tickets [][]string) map[string][]string {
-    graph := make(map[string][]string)
+type Itinerary []string
 
-    for _, itinerary := range tickets {
-      flightTo, in := graph[itinerary[0]]
-
-      if !in {
-        flightTo = make([]string, 0)
-      }
-
-      flightTo = append(flightTo, itinerary[1])
-
-      graph[itinerary[0]] = flightTo
-    }
-    return graph
+func (hp Itinerary) Len() int {
+	return len(hp)
 }
 
-func toPathKey (airportA, airportB string) string {
-  return fmt.Sprintf("%s->%s", airportA, airportB)
+func (hp Itinerary) Swap(i, j int) {
+	hp[i], hp[j] = hp[j], hp[i]
 }
 
-func toLexico(airline string) int {
-  var value int
-
-  for i := 0; i < len(airline); i++ {
-    value += int(airline[i])
-  } 
-
-  return value
+func (hp Itinerary) Less(i, j int) bool {
+	return hp[i] < hp[j]
 }
 
-func compareTo(collected1, collected2 []string) int {
-  temp := strings.Join(collected1, "")
-  orig := strings.Join(collected2, "")
-
-  fmt.Printf("temp %s\n", temp)
-  fmt.Printf("orig %s\n", orig)
-
-  switch {
-    case temp < orig:
-      return -1
-    case temp > orig:
-      return 1
-    default:
-      return 0
-  }
+func (hp *Itinerary) Push(val interface{}) {
+  (*hp) = append(*hp, val.(string))
 }
 
-func dFsIt(graph map[string][]string, currAirport string, seen map[string]bool, path *[]string) {
-  airport, in := graph[currAirport]
+func (hp *Itinerary) Pop() interface{} {
+	ret := (*hp)[len(*hp)-1]
+	*hp = (*hp)[:len(*hp)-1]
+
+	return ret
+}
+
+func graphIt(tickets [][]string) (map[string]Itinerary, int) {
+	graph := make(map[string]Itinerary)
+  var numOfEdges int
+
+	for _, ticket := range tickets {
+		itinerary, in := graph[ticket[0]]
+
+		if !in {
+			itinerary = make(Itinerary, 0)
+		}
+		ptr := &itinerary
+		heap.Init(ptr)
+		heap.Push(ptr, ticket[1])
+    numOfEdges++
+		graph[ticket[0]] = *ptr
+	}
+	return graph, numOfEdges
+}
+
+func edgeKey(airportA, airportB string) string {
+	return fmt.Sprintf("%s->%s", airportA, airportB)
+}
+
+func dFsIt(graph map[string]Itinerary, memoized map[string]bool, currAirport string, totalSumOfEdges int) []string {
   
-  if in {
-    airportCpy := make([]string, len(airport))
-    copy(airportCpy, airport)
-    sort.Strings(airportCpy)
-    for i := 0; i < len(airportCpy); i++ {
-      flight := airportCpy[i]
-      key := toPathKey(currAirport, flight)
+  flightItinerary := graph[currAirport] 
+  ptr := &flightItinerary
 
-      if saw, _ := seen[key]; !saw {
-        seen[key] = true
-        *path = append(*path, flight)
-        dFsIt(graph, flight, seen, path)
+  recursedBack := make([][]string, 0, totalSumOfEdges+1)
+  var oneWay []string
+
+  for len(*ptr) > 0 {
+    nFlight := heap.Pop(ptr).(string)
+    edge := edgeKey(currAirport, nFlight)
+    if _, saw := memoized[edge]; !saw {
+      memoized[edge] = true
+      retItinerary := dFsIt(graph, memoized, nFlight, totalSumOfEdges)
+
+      switch {
+       case retItinerary[len(retItinerary)-1] == currAirport:
+        recursedBack = append(recursedBack, retItinerary)
+       case oneWay == nil:
+        oneWay = retItinerary
       }
     }
+  }
+  ret := make([]string, 0, totalSumOfEdges+1)
 
+  ret = append(ret, currAirport)
+
+  for _, reIti := range recursedBack {
+    ret = append(ret, reIti...)
   }
 
+  return append(ret, oneWay...)
 }
+
 
 func findItinerary(tickets [][]string) []string {
-    memoized := make(map[string]bool)
-    graph := graphIt(tickets)
-    minItinerary := &[]string{"JFK"}
-    
-    dFsIt(graph, "JFK", memoized, minItinerary)
-    return *minItinerary
+	graph, numOfEdges := graphIt(tickets)
+  fmt.Printf("graph %v\n", graph)
+	return dFsIt(graph, make(map[string]bool), "JFK", numOfEdges)
 }
 
 func main() {
-  fmt.Printf("%v\n", findItinerary([][]string{[]string{"JFK","SFO"}, []string{"JFK", "ATL"}, []string{"SFO", "ATL"}, []string{"ATL", "JFK"}, []string{"ATL", "SFO"}}))
-  fmt.Printf("%d", compareTo([]string{"JFK", "KUL", "NRT", "JFK"}, []string{"JFK", "NRT", "JFK", "KUL"}))
+	fmt.Printf("%v\n", findItinerary([][]string{{"EZE","AXA"},{"TIA","ANU"},{"ANU","JFK"},{"JFK","ANU"},{"ANU","EZE"},{"TIA","ANU"},{"AXA","TIA"},{"TIA","JFK"},{"ANU","TIA"},{"JFK","TIA"}}))
 }
